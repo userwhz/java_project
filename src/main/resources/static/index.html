@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Hub</title>
+    <style>
+        :root {
+            --bg: #0c0f17;
+            --panel: #141a26;
+            --accent: #4ade80;
+            --muted: #94a3b8;
+            --danger: #f87171;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at 20% 20%, rgba(74, 222, 128, 0.08), transparent 25%),
+                        radial-gradient(circle at 80% 10%, rgba(250, 204, 21, 0.08), transparent 25%),
+                        radial-gradient(circle at 50% 80%, rgba(96, 165, 250, 0.08), transparent 25%),
+                        var(--bg);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        header {
+            padding: 24px;
+            text-align: center;
+            background: rgba(20, 26, 38, 0.9);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+            position: sticky;
+            top: 0;
+            backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+
+        header h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0.5px; }
+        header p { margin: 0; color: var(--muted); }
+
+        .grid {
+            display: grid;
+            gap: 24px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: rgba(20, 26, 38, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card h2 {
+            margin: 0 0 10px;
+            letter-spacing: 0.25px;
+        }
+
+        .card p {
+            margin: 0 0 16px;
+            color: var(--muted);
+        }
+
+        canvas, .game-area {
+            background: #0b1020;
+            border-radius: 12px;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        }
+
+        .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+
+        button {
+            background: linear-gradient(120deg, #4ade80, #22d3ee);
+            border: none;
+            color: #0b1020;
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(34, 211, 238, 0.35);
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+        }
+
+        button:active { transform: translateY(1px); box-shadow: 0 5px 14px rgba(34, 211, 238, 0.3); }
+
+        .stat {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(148, 163, 184, 0.12);
+            padding: 6px 10px;
+            border-radius: 12px;
+            margin-right: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+
+        .pill { color: #22d3ee; font-weight: 600; }
+        .muted { color: var(--muted); }
+
+        .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+        .split { display: grid; grid-template-columns: 1fr 220px; gap: 16px; align-items: start; }
+        .sidebar {
+            background: rgba(10, 12, 20, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+
+        @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Arcade Hub</h1>
+    <p>Play the classic Snake from this project plus two fresh mini-games, all in the browser.</p>
+</header>
+
+<section class="grid">
+    <article class="card split">
+        <div>
+            <h2>Snake (web edition)</h2>
+            <p>Faithful grid movement and apple-chasing from the original Swing Snake, now rendered in canvas.</p>
+            <div class="controls">
+                <button id="snake-start">Start / Restart</button>
+                <button id="snake-pause">Pause / Resume</button>
+            </div>
+            <canvas id="snake-board" width="420" height="420"></canvas>
+            <div class="hint">Use arrow keys or WASD to move. Avoid walls and your own tail.</div>
+        </div>
+        <div class="sidebar">
+            <div class="stat">Score: <span id="snake-score" class="pill">0</span></div>
+            <div class="stat">Best: <span id="snake-best" class="pill">0</span></div>
+            <div class="stat">State: <span id="snake-state" class="pill">Ready</span></div>
+            <p class="hint">This browser version mirrors the classic Java logic: fixed grid, apples grow the body, and collisions end the run.</p>
+        </div>
+    </article>
+
+    <article class="card">
+        <h2>Orb Catcher</h2>
+        <p>Slide the paddle to scoop falling orbs. Each catch adds a point; let one slip and you lose a life.</p>
+        <div class="controls">
+            <button id="catcher-start">Start / Restart</button>
+        </div>
+        <canvas id="catcher-board" width="420" height="260"></canvas>
+        <div class="stat">Score: <span id="catcher-score" class="pill">0</span></div>
+        <div class="stat">Lives: <span id="catcher-lives" class="pill">3</span></div>
+        <div class="hint">Move with ← → or A / D. Catch streaks speed up the drop for a quick challenge.</div>
+    </article>
+
+    <article class="card">
+        <h2>Memory Flip</h2>
+        <p>Find matching pairs before the timer runs out. Great for a short brain warm-up.</p>
+        <div class="controls">
+            <button id="memory-start">Shuffle</button>
+        </div>
+        <div id="memory-grid" class="game-area" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px;"></div>
+        <div class="stat">Matches: <span id="memory-matches" class="pill">0</span></div>
+        <div class="stat">Time: <span id="memory-time" class="pill">0s</span></div>
+        <div class="hint">Flip two tiles to find a pair. Complete all pairs before the countdown hits zero.</div>
+    </article>
+</section>
+
+<script>
+    // Snake game
+    (() => {
+        const canvas = document.getElementById('snake-board');
+        const ctx = canvas.getContext('2d');
+        const unit = 20;
+        const cols = canvas.width / unit;
+        const rows = canvas.height / unit;
+        let snake, apple, dir, nextDir, running, score, best = 0, loopId;
+
+        const scoreEl = document.getElementById('snake-score');
+        const bestEl = document.getElementById('snake-best');
+        const stateEl = document.getElementById('snake-state');
+
+        const reset = () => {
+            snake = [{ x: 3, y: 3 }, { x: 2, y: 3 }, { x: 1, y: 3 }];
+            dir = 'R';
+            nextDir = 'R';
+            score = 0;
+            running = false;
+            placeApple();
+            render();
+            updateHud('Ready');
+        };
+
+        const updateHud = (text) => {
+            scoreEl.textContent = score;
+            bestEl.textContent = best;
+            stateEl.textContent = text;
+        };
+
+        const placeApple = () => {
+            do {
+                apple = {
+                    x: Math.floor(Math.random() * cols),
+                    y: Math.floor(Math.random() * rows)
+                };
+            } while (snake.some(s => s.x === apple.x && s.y === apple.y));
+        };
+
+        const render = () => {
+            ctx.fillStyle = '#0b1020';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(apple.x * unit + unit / 2, apple.y * unit + unit / 2, unit / 2 - 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            snake.forEach((part, idx) => {
+                ctx.fillStyle = idx === 0 ? '#22d3ee' : '#34d399';
+                ctx.fillRect(part.x * unit + 2, part.y * unit + 2, unit - 4, unit - 4);
+            });
+        };
+
+        const step = () => {
+            dir = nextDir;
+            const head = { ...snake[0] };
+            if (dir === 'U') head.y -= 1;
+            if (dir === 'D') head.y += 1;
+            if (dir === 'L') head.x -= 1;
+            if (dir === 'R') head.x += 1;
+
+            const hitWall = head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows;
+            const hitSelf = snake.some(p => p.x === head.x && p.y === head.y);
+            if (hitWall || hitSelf) {
+                running = false;
+                cancelAnimationFrame(loopId);
+                updateHud('Game Over');
+                return;
+            }
+
+            snake.unshift(head);
+            if (head.x === apple.x && head.y === apple.y) {
+                score += 1;
+                best = Math.max(best, score);
+                placeApple();
+            } else {
+                snake.pop();
+            }
+
+            render();
+            loopId = requestAnimationFrame(() => setTimeout(step, 90));
+            updateHud('Running');
+        };
+
+        const start = () => {
+            cancelAnimationFrame(loopId);
+            running = true;
+            step();
+        };
+
+        const togglePause = () => {
+            if (!running) return;
+            if (loopId) {
+                cancelAnimationFrame(loopId);
+                loopId = null;
+                updateHud('Paused');
+            } else {
+                updateHud('Running');
+                step();
+            }
+        };
+
+        document.getElementById('snake-start').addEventListener('click', () => {
+            reset();
+            start();
+        });
+
+        document.getElementById('snake-pause').addEventListener('click', togglePause);
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            const map = { arrowup: 'U', w: 'U', arrowdown: 'D', s: 'D', arrowleft: 'L', a: 'L', arrowright: 'R', d: 'R' };
+            if (!map[key]) return;
+            const desired = map[key];
+            const opposites = { U: 'D', D: 'U', L: 'R', R: 'L' };
+            if (desired !== opposites[dir]) {
+                nextDir = desired;
+            }
+        });
+
+        reset();
+    })();
+
+    // Orb Catcher game
+    (() => {
+        const canvas = document.getElementById('catcher-board');
+        const ctx = canvas.getContext('2d');
+        const paddle = { x: canvas.width / 2 - 40, y: canvas.height - 18, w: 80, h: 10 };
+        const orbRadius = 8;
+        let orb, speed, score, lives, loopId, running;
+        const scoreEl = document.getElementById('catcher-score');
+        const livesEl = document.getElementById('catcher-lives');
+
+        const reset = () => {
+            score = 0;
+            lives = 3;
+            speed = 2.6;
+            spawnOrb();
+            running = false;
+            draw();
+        };
+
+        const spawnOrb = () => {
+            orb = { x: Math.random() * (canvas.width - orbRadius * 2) + orbRadius, y: -orbRadius };
+        };
+
+        const draw = () => {
+            ctx.fillStyle = '#0b1020';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#22d3ee';
+            ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+
+            ctx.beginPath();
+            ctx.fillStyle = '#f59e0b';
+            ctx.arc(orb.x, orb.y, orbRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            scoreEl.textContent = score;
+            livesEl.textContent = lives;
+        };
+
+        const step = () => {
+            orb.y += speed;
+            const withinX = orb.x > paddle.x && orb.x < paddle.x + paddle.w;
+            const withinY = orb.y + orbRadius >= paddle.y;
+
+            if (withinX && withinY) {
+                score += 1;
+                speed = Math.min(speed + 0.3, 8);
+                spawnOrb();
+            } else if (orb.y - orbRadius > canvas.height) {
+                lives -= 1;
+                spawnOrb();
+            }
+
+            if (lives <= 0) {
+                running = false;
+                cancelAnimationFrame(loopId);
+                draw();
+                return;
+            }
+
+            draw();
+            loopId = requestAnimationFrame(step);
+        };
+
+        const start = () => {
+            if (running) return;
+            running = true;
+            cancelAnimationFrame(loopId);
+            step();
+        };
+
+        document.getElementById('catcher-start').addEventListener('click', () => {
+            reset();
+            start();
+        });
+
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            const move = 14;
+            if (key === 'arrowleft' || key === 'a') paddle.x = Math.max(0, paddle.x - move);
+            if (key === 'arrowright' || key === 'd') paddle.x = Math.min(canvas.width - paddle.w, paddle.x + move);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            paddle.x = Math.min(Math.max(x - paddle.w / 2, 0), canvas.width - paddle.w);
+        });
+
+        reset();
+    })();
+
+    // Memory Flip game
+    (() => {
+        const grid = document.getElementById('memory-grid');
+        const matchesEl = document.getElementById('memory-matches');
+        const timeEl = document.getElementById('memory-time');
+        const startBtn = document.getElementById('memory-start');
+        const icons = ['🐍', '⭐', '⚡', '🎯', '🍎', '🎮', '💠', '🧩'];
+        let tiles = [], first = null, lock = false, matches = 0, timerId, timeLeft = 60, peek = new Set();
+
+        const shuffleTiles = () => {
+            const pool = [...icons, ...icons].sort(() => Math.random() - 0.5);
+            tiles = pool.map((icon, idx) => ({ id: idx, icon, matched: false }));
+        };
+
+        const render = () => {
+            grid.innerHTML = '';
+            tiles.forEach(tile => {
+                const btn = document.createElement('button');
+                const isShowing = tile.matched || peek.has(tile.id);
+                btn.textContent = isShowing ? tile.icon : '❔';
+                btn.style.fontSize = '26px';
+                btn.style.height = '70px';
+                btn.style.borderRadius = '10px';
+                btn.style.background = tile.matched ? 'rgba(74, 222, 128, 0.3)' : 'rgba(148, 163, 184, 0.18)';
+                btn.style.border = '1px solid rgba(148, 163, 184, 0.25)';
+                btn.style.cursor = 'pointer';
+                btn.onclick = () => flip(tile);
+                grid.appendChild(btn);
+            });
+            matchesEl.textContent = matches;
+            timeEl.textContent = `${timeLeft}s`;
+        };
+
+        const flip = (tile) => {
+            if (lock || tile.matched || tile === first || timeLeft <= 0) return;
+            if (!first) {
+                first = tile;
+                peek = new Set([tile.id]);
+                render();
+                return;
+            }
+
+            if (tile.icon === first.icon) {
+                tile.matched = first.matched = true;
+                matches += 1;
+                first = null;
+                peek = new Set();
+                render();
+                if (matches === icons.length) stopTimer();
+            } else {
+                lock = true;
+                peek = new Set([first.id, tile.id]);
+                render();
+                setTimeout(() => {
+                    lock = false;
+                    first = null;
+                    peek = new Set();
+                    render();
+                }, 650);
+            }
+        };
+
+        const stopTimer = () => clearInterval(timerId);
+
+        const startTimer = () => {
+            stopTimer();
+            timerId = setInterval(() => {
+                timeLeft -= 1;
+                timeEl.textContent = `${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    stopTimer();
+                    lock = true;
+                }
+            }, 1000);
+        };
+
+        const start = () => {
+            matches = 0;
+            timeLeft = 60;
+            lock = false;
+            first = null;
+            peek = new Set();
+            shuffleTiles();
+            render();
+            startTimer();
+        };
+
+        startBtn.addEventListener('click', start);
+        start();
+    })();
+</script>
+</body>
+</html>
