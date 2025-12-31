@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Flip · Arcade Hub</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+    <h1>Memory Flip</h1>
+    <p>在 60 秒倒计时内完成所有配对，考验记忆与节奏。</p>
+</header>
+<main>
+    <a class="nav-back" href="/">← 返回首页</a>
+    <section class="panel">
+        <div class="layout">
+            <div>
+                <div class="control-row">
+                    <button class="btn" id="memory-start">洗牌开始</button>
+                </div>
+                <div class="game-area" id="memory-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px;border-radius:14px;border:1px solid rgba(148, 163, 184, 0.2);background:#0b1020;"></div>
+                <div class="hint">操作：点击或触控翻牌。翻错会短暂显示后盖回。</div>
+            </div>
+            <div class="panel">
+                <div class="stat">匹配：<span class="value" id="memory-matches">0</span></div>
+                <div class="stat">剩余时间：<span class="value" id="memory-time">0s</span></div>
+                <div class="separator"></div>
+                <p class="hint">共 8 对符号。完成后自动停止计时，可随时重新洗牌。</p>
+            </div>
+        </div>
+    </section>
+</main>
+<script>
+(() => {
+    const grid = document.getElementById('memory-grid');
+    const matchesEl = document.getElementById('memory-matches');
+    const timeEl = document.getElementById('memory-time');
+    const startBtn = document.getElementById('memory-start');
+    const icons = ['🐍', '⭐', '⚡', '🎯', '🍎', '🎮', '💠', '🧩'];
+    let tiles = [], first = null, lock = false, matches = 0, timerId, timeLeft = 60, peek = new Set();
+
+    const shuffleTiles = () => {
+        const pool = [...icons, ...icons].sort(() => Math.random() - 0.5);
+        tiles = pool.map((icon, idx) => ({ id: idx, icon, matched: false }));
+    };
+
+    const render = () => {
+        grid.innerHTML = '';
+        tiles.forEach(tile => {
+            const btn = document.createElement('button');
+            const isShowing = tile.matched || peek.has(tile.id);
+            btn.textContent = isShowing ? tile.icon : '❔';
+            btn.style.fontSize = '26px';
+            btn.style.height = '70px';
+            btn.style.borderRadius = '10px';
+            btn.style.background = tile.matched ? 'rgba(74, 222, 128, 0.3)' : 'rgba(148, 163, 184, 0.18)';
+            btn.style.border = '1px solid rgba(148, 163, 184, 0.25)';
+            btn.style.cursor = 'pointer';
+            btn.onclick = () => flip(tile);
+            grid.appendChild(btn);
+        });
+        matchesEl.textContent = matches;
+        timeEl.textContent = `${timeLeft}s`;
+    };
+
+    const flip = (tile) => {
+        if (lock || tile.matched || tile === first || timeLeft <= 0) return;
+        if (!first) {
+            first = tile;
+            peek = new Set([tile.id]);
+            render();
+            return;
+        }
+
+        if (tile.icon === first.icon) {
+            tile.matched = first.matched = true;
+            matches += 1;
+            first = null;
+            peek = new Set();
+            render();
+            if (matches === icons.length) stopTimer();
+        } else {
+            lock = true;
+            peek = new Set([first.id, tile.id]);
+            render();
+            setTimeout(() => {
+                lock = false;
+                first = null;
+                peek = new Set();
+                render();
+            }, 650);
+        }
+    };
+
+    const stopTimer = () => clearInterval(timerId);
+
+    const startTimer = () => {
+        stopTimer();
+        timerId = setInterval(() => {
+            timeLeft -= 1;
+            timeEl.textContent = `${timeLeft}s`;
+            if (timeLeft <= 0) {
+                stopTimer();
+                lock = true;
+            }
+        }, 1000);
+    };
+
+    const start = () => {
+        matches = 0;
+        timeLeft = 60;
+        lock = false;
+        first = null;
+        peek = new Set();
+        shuffleTiles();
+        render();
+        startTimer();
+    };
+
+    startBtn.addEventListener('click', start);
+    start();
+})();
+</script>
+</body>
+</html>

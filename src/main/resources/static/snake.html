@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake · Arcade Hub</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+    <h1>贪吃蛇 · 网页版</h1>
+    <p>保持原汁原味的格子移动、吃苹果加长、撞墙/撞身即刻失败。</p>
+</header>
+<main>
+    <a class="nav-back" href="/">← 返回首页</a>
+    <section class="panel">
+        <div class="layout">
+            <div>
+                <div class="control-row">
+                    <button class="btn" id="snake-start">开始 / 重开</button>
+                    <button class="btn secondary" id="snake-pause">暂停 / 继续</button>
+                </div>
+                <div class="canvas-frame">
+                    <canvas id="snake-board" width="420" height="420"></canvas>
+                </div>
+                <div class="hint">操作：WASD 或方向键移动。撞墙/撞到自己即结束。</div>
+            </div>
+            <div class="panel">
+                <div class="stat">分数：<span class="value" id="snake-score">0</span></div>
+                <div class="stat">最佳：<span class="value" id="snake-best">0</span></div>
+                <div class="stat">状态：<span class="value" id="snake-state">Ready</span></div>
+                <div class="separator"></div>
+                <p class="hint">逻辑与 Swing 版保持一致：固定大小网格，苹果位置随机且不与身体重叠。</p>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script>
+(() => {
+    const canvas = document.getElementById('snake-board');
+    const ctx = canvas.getContext('2d');
+    const unit = 20;
+    const cols = canvas.width / unit;
+    const rows = canvas.height / unit;
+    let snake, apple, dir, nextDir, running, score, best = 0, loopId;
+
+    const scoreEl = document.getElementById('snake-score');
+    const bestEl = document.getElementById('snake-best');
+    const stateEl = document.getElementById('snake-state');
+
+    const reset = () => {
+        snake = [{ x: 3, y: 3 }, { x: 2, y: 3 }, { x: 1, y: 3 }];
+        dir = 'R';
+        nextDir = 'R';
+        score = 0;
+        running = false;
+        placeApple();
+        render();
+        updateHud('Ready');
+    };
+
+    const updateHud = (text) => {
+        scoreEl.textContent = score;
+        bestEl.textContent = best;
+        stateEl.textContent = text;
+    };
+
+    const placeApple = () => {
+        do {
+            apple = {
+                x: Math.floor(Math.random() * cols),
+                y: Math.floor(Math.random() * rows)
+            };
+        } while (snake.some(s => s.x === apple.x && s.y === apple.y));
+    };
+
+    const render = () => {
+        ctx.fillStyle = '#0b1020';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(apple.x * unit + unit / 2, apple.y * unit + unit / 2, unit / 2 - 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        snake.forEach((part, idx) => {
+            ctx.fillStyle = idx === 0 ? '#22d3ee' : '#34d399';
+            ctx.fillRect(part.x * unit + 2, part.y * unit + 2, unit - 4, unit - 4);
+        });
+    };
+
+    const step = () => {
+        dir = nextDir;
+        const head = { ...snake[0] };
+        if (dir === 'U') head.y -= 1;
+        if (dir === 'D') head.y += 1;
+        if (dir === 'L') head.x -= 1;
+        if (dir === 'R') head.x += 1;
+
+        const hitWall = head.x < 0 || head.x >= cols || head.y < 0 || head.y >= rows;
+        const hitSelf = snake.some(p => p.x === head.x && p.y === head.y);
+        if (hitWall || hitSelf) {
+            running = false;
+            cancelAnimationFrame(loopId);
+            updateHud('Game Over');
+            return;
+        }
+
+        snake.unshift(head);
+        if (head.x === apple.x && head.y === apple.y) {
+            score += 1;
+            best = Math.max(best, score);
+            placeApple();
+        } else {
+            snake.pop();
+        }
+
+        render();
+        loopId = requestAnimationFrame(() => setTimeout(step, 90));
+        updateHud('Running');
+    };
+
+    const start = () => {
+        cancelAnimationFrame(loopId);
+        running = true;
+        step();
+    };
+
+    const togglePause = () => {
+        if (!running) return;
+        if (loopId) {
+            cancelAnimationFrame(loopId);
+            loopId = null;
+            updateHud('Paused');
+        } else {
+            updateHud('Running');
+            step();
+        }
+    };
+
+    document.getElementById('snake-start').addEventListener('click', () => {
+        reset();
+        start();
+    });
+
+    document.getElementById('snake-pause').addEventListener('click', togglePause);
+
+    window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        const map = { arrowup: 'U', w: 'U', arrowdown: 'D', s: 'D', arrowleft: 'L', a: 'L', arrowright: 'R', d: 'R' };
+        if (!map[key]) return;
+        const desired = map[key];
+        const opposites = { U: 'D', D: 'U', L: 'R', R: 'L' };
+        if (desired !== opposites[dir]) {
+            nextDir = desired;
+        }
+    });
+
+    reset();
+})();
+</script>
+</body>
+</html>
