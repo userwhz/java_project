@@ -1,19 +1,22 @@
 # Agent Instructions
 
 ## Project Overview
-- Java Swing Snake game.
-- Main application entry point: `com.example.snake.GameApplication`.
+- Spring Boot web app + Java Swing Snake game.
+- Web app entry point: `com.example.Application`.
+- Snake game entry point: `com.example.snake.GameApplication`.
 - Additional scratch/demo file: `src/Main.java` (not part of the Snake app).
 
 ## Structure
-- `src/com/example/snake/`: game UI and logic.
+- `src/main/java/com/example/`: Spring Boot app.
+- `src/main/java/com/example/snake/`: game UI and logic.
 - `README.md`: build/run instructions.
 
 ## Build and Run
 - Requires JDK 8+.
-- Compile:
-- `javac -d out $(find src -name "*.java")`
-- Run:
+- Spring Boot:
+  - `mvn spring-boot:run`
+- Swing:
+  - `javac -d out $(find src/main/java -name "*.java")`
   - `java -cp out com.example.snake.GameApplication`
 
 ## Coding Conventions

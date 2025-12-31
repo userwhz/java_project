@@ -1,14 +1,31 @@
-# Java Snake Game
+# Java Demo (Spring Boot + Swing)
 
-This is a simple Swing implementation of the classic Snake game.
+This project contains a Spring Boot web app and a simple Swing Snake game.
 
-## How to build and run
+## Requirements
 
-You only need a Java 8+ JDK. From the project root:
+- JDK 8+
+- Maven
+
+## Spring Boot
+
+Run the web app:
 
 ```bash
-javac -d out $(find src -name "*.java")
-java -cp out com.example.snake.GameApplication
+mvn spring-boot:run
 ```
 
-Use the arrow keys to move the snake and press **Enter** after a game over to restart.
+Then open:
+
+```
+http://localhost:8080/
+```
+
+## Swing Snake Game
+
+Compile and run the Swing app:
+
+```bash
+javac -d out $(find src/main/java -name "*.java")
+java -cp out com.example.snake.GameApplication
+```
