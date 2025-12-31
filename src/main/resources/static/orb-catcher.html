@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orb Catcher · Arcade Hub</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+    <h1>Orb Catcher</h1>
+    <p>接住陨落能量球累积分数，漏掉会扣除生命。追求连击速度！</p>
+</header>
+<main>
+    <a class="nav-back" href="/">← 返回首页</a>
+    <section class="panel">
+        <div class="layout">
+            <div>
+                <div class="control-row">
+                    <button class="btn" id="catcher-start">开始 / 重开</button>
+                </div>
+                <div class="canvas-frame">
+                    <canvas id="catcher-board" width="420" height="260"></canvas>
+                </div>
+                <div class="hint">操作：左右方向键或 A / D 控制；鼠标移动也可定位挡板。</div>
+            </div>
+            <div class="panel">
+                <div class="stat">分数：<span class="value" id="catcher-score">0</span></div>
+                <div class="stat">生命：<span class="value" id="catcher-lives">3</span></div>
+                <div class="separator"></div>
+                <p class="hint">连续接住会加快下落速度，保持节奏确保三条命不被耗尽。</p>
+            </div>
+        </div>
+    </section>
+</main>
+<script>
+(() => {
+    const canvas = document.getElementById('catcher-board');
+    const ctx = canvas.getContext('2d');
+    const paddle = { x: canvas.width / 2 - 40, y: canvas.height - 18, w: 80, h: 10 };
+    const orbRadius = 8;
+    let orb, speed, score, lives, loopId, running;
+    const scoreEl = document.getElementById('catcher-score');
+    const livesEl = document.getElementById('catcher-lives');
+
+    const reset = () => {
+        score = 0;
+        lives = 3;
+        speed = 2.6;
+        spawnOrb();
+        running = false;
+        draw();
+    };
+
+    const spawnOrb = () => {
+        orb = { x: Math.random() * (canvas.width - orbRadius * 2) + orbRadius, y: -orbRadius };
+    };
+
+    const draw = () => {
+        ctx.fillStyle = '#0b1020';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#22d3ee';
+        ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+
+        ctx.beginPath();
+        ctx.fillStyle = '#f59e0b';
+        ctx.arc(orb.x, orb.y, orbRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        scoreEl.textContent = score;
+        livesEl.textContent = lives;
+    };
+
+    const step = () => {
+        orb.y += speed;
+        const withinX = orb.x > paddle.x && orb.x < paddle.x + paddle.w;
+        const withinY = orb.y + orbRadius >= paddle.y;
+
+        if (withinX && withinY) {
+            score += 1;
+            speed = Math.min(speed + 0.3, 8);
+            spawnOrb();
+        } else if (orb.y - orbRadius > canvas.height) {
+            lives -= 1;
+            spawnOrb();
+        }
+
+        if (lives <= 0) {
+            running = false;
+            cancelAnimationFrame(loopId);
+            draw();
+            return;
+        }
+
+        draw();
+        loopId = requestAnimationFrame(step);
+    };
+
+    const start = () => {
+        if (running) return;
+        running = true;
+        cancelAnimationFrame(loopId);
+        step();
+    };
+
+    document.getElementById('catcher-start').addEventListener('click', () => {
+        reset();
+        start();
+    });
+
+    window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        const move = 14;
+        if (key === 'arrowleft' || key === 'a') paddle.x = Math.max(0, paddle.x - move);
+        if (key === 'arrowright' || key === 'd') paddle.x = Math.min(canvas.width - paddle.w, paddle.x + move);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        paddle.x = Math.min(Math.max(x - paddle.w / 2, 0), canvas.width - paddle.w);
+    });
+
+    reset();
+})();
+</script>
+</body>
+</html>
