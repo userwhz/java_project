@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>隔空手势写字 - MediaPipe</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(18, 26, 46, 0.9);
+      --accent: #00e0ff;
+      --eraser: #ffd166;
+      --text: #e7ecf3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 20% 20%, #102040, var(--bg));
+      font-family: "Inter", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+      color: var(--text);
+    }
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      filter: brightness(0.75) saturate(1.1);
+      display: none;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+    }
+    .hud {
+      position: absolute;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.6rem 1rem;
+      background: rgba(12, 18, 34, 0.8);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 12px;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      font-size: 0.95rem;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ff6666;
+      box-shadow: 0 0 10px rgba(255,102,102,0.65);
+    }
+    .status-dot.active {
+      background: #5cffb5;
+      box-shadow: 0 0 10px rgba(92,255,181,0.9);
+    }
+    .panel {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      opacity: 0;
+      pointer-events: none;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 1.25rem;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+      gap: 0.8rem;
+      min-width: 320px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+      transition: opacity 200ms ease, transform 200ms ease;
+      color: var(--text);
+      z-index: 3;
+    }
+    .panel.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
+    .panel h3 {
+      margin: 0 0 0.4rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .panel .group { border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 0.6rem; }
+    .option-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .option {
+      position: relative;
+      padding: 0.55rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      min-width: 64px;
+      text-align: center;
+      transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    }
+    .option.hovered {
+      border-color: rgba(0,224,255,0.7);
+      box-shadow: 0 0 0 2px rgba(0,224,255,0.15);
+    }
+    .option.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0,224,255,0.2), 0 10px 25px rgba(0,0,0,0.3);
+      transform: translateY(-2px);
+    }
+    .option.eraser.active { border-color: var(--eraser); box-shadow: 0 0 0 2px rgba(255,209,102,0.25); }
+    .swatch { width: 26px; height: 26px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); }
+    .option.color.active { outline: 2px solid var(--accent); }
+    .option.size { min-width: 68px; }
+    .overlay-label {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(12, 18, 34, 0.72);
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.95rem;
+      display: inline-flex;
+      gap: 0.5rem;
+      align-items: center;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.35);
+    }
+    .chips { display: inline-flex; gap: 0.4rem; }
+    .chip {
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.85rem;
+    }
+    #debug { position: absolute; top: 1rem; right: 1rem; font-size: 0.85rem; opacity: 0.65; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <div class="hud">
+      <div id="cam-status" class="status-dot"></div>
+      <span id="hud-text">准备就绪：张开手掌唤出面板</span>
+    </div>
+
+    <div id="panel" class="panel" aria-live="polite">
+      <div class="group">
+        <h3>工具</h3>
+        <div class="option-list" id="tool-options"></div>
+      </div>
+      <div class="group">
+        <h3>笔刷颜色</h3>
+        <div class="option-list" id="color-options"></div>
+      </div>
+      <div class="group">
+        <h3>笔刷粗细</h3>
+        <div class="option-list" id="size-options"></div>
+      </div>
+      <div class="group">
+        <h3>提示</h3>
+        <div style="font-size: 0.9rem; line-height: 1.5; opacity: 0.9;">
+          用手指指向选项即可，合并拇指与食指开始书写，伸出五指关闭面板。
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay-label">
+      <div>✋ 张开手掌：切换面板 | 🤏 拇指+食指：写字 | ✌️ 食指+中指：飘落清屏</div>
+    </div>
+    <div id="debug"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.min.js"></script>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const panel = document.getElementById('panel');
+    const hudText = document.getElementById('hud-text');
+    const camStatus = document.getElementById('cam-status');
+    const debug = document.getElementById('debug');
+
+    const tools = [
+      { id: 'pen', label: '画笔', icon: '✏️' },
+      { id: 'eraser', label: '橡皮擦', icon: '🧽' }
+    ];
+    const colors = ['#00e0ff', '#ff5f6d', '#ffd166', '#7cff92', '#ffffff'];
+    const sizes = [4, 8, 12, 18];
+
+    const elements = {
+      toolOptions: document.getElementById('tool-options'),
+      colorOptions: document.getElementById('color-options'),
+      sizeOptions: document.getElementById('size-options'),
+    };
+
+    let drawingMode = 'pen';
+    let strokeColor = colors[0];
+    let strokeSize = sizes[1];
+    let panelOpen = false;
+    let pendingPanelClose = false;
+    let selectionHover = null;
+
+    let strokes = [];
+    let currentStroke = null;
+    let drawing = false;
+
+    let currentScale = 1;
+    let zoomBaseDistance = null;
+    let zoomBaseScale = 1;
+
+    let fallingFlakes = [];
+    let clearing = false;
+
+    const pointerSmoothing = { x: null, y: null };
+    function smoothPoint(x, y) {
+      if (pointerSmoothing.x === null) {
+        pointerSmoothing.x = x;
+        pointerSmoothing.y = y;
+        return { x, y };
+      }
+      const alpha = 0.35;
+      pointerSmoothing.x = pointerSmoothing.x * (1 - alpha) + x * alpha;
+      pointerSmoothing.y = pointerSmoothing.y * (1 - alpha) + y * alpha;
+      return { x: pointerSmoothing.x, y: pointerSmoothing.y };
+    }
+
+    function createOption(parent, item, type) {
+      const div = document.createElement('div');
+      div.className = 'option' + (item.id === 'eraser' ? ' eraser' : '') + (type === 'color' ? ' color' : '') + (type === 'size' ? ' size' : '');
+      div.dataset.value = item.id || item;
+      if (type === 'color') {
+        const sw = document.createElement('div');
+        sw.className = 'swatch';
+        sw.style.background = item;
+        div.appendChild(sw);
+      } else if (type === 'size') {
+        div.textContent = `${item}px`;
+      } else {
+        div.textContent = `${item.icon} ${item.label}`;
+      }
+      parent.appendChild(div);
+    }
+
+    tools.forEach(t => createOption(elements.toolOptions, t, 'tool'));
+    colors.forEach(c => createOption(elements.colorOptions, c, 'color'));
+    sizes.forEach(s => createOption(elements.sizeOptions, s, 'size'));
+
+    function updateActiveUI() {
+      [...elements.toolOptions.children].forEach(el => {
+        el.classList.remove('hovered');
+        el.classList.toggle('active', el.dataset.value === drawingMode);
+      });
+      [...elements.colorOptions.children].forEach(el => {
+        el.classList.remove('hovered');
+        el.classList.toggle('active', el.dataset.value === strokeColor);
+      });
+      [...elements.sizeOptions.children].forEach(el => {
+        el.classList.remove('hovered');
+        el.classList.toggle('active', Number(el.dataset.value) === strokeSize);
+      });
+    }
+    updateActiveUI();
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function openPanel() {
+      panelOpen = true;
+      panel.classList.add('visible');
+      hudText.textContent = '面板已打开：用食指指向选项';
+    }
+    function closePanel() {
+      panelOpen = false;
+      pendingPanelClose = false;
+      selectionHover = null;
+      panel.classList.remove('visible');
+      hudText.textContent = '再次张开手掌可重新打开面板';
+    }
+
+    function updateHud(status) {
+      hudText.textContent = status;
+    }
+
+    function worldPoint(screenX, screenY) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      return {
+        x: (screenX - cx) / currentScale + cx,
+        y: (screenY - cy) / currentScale + cy,
+      };
+    }
+
+    function startStroke(pt) {
+      drawing = true;
+      const wp = worldPoint(pt.x, pt.y);
+      currentStroke = {
+        mode: drawingMode,
+        color: strokeColor,
+        size: strokeSize,
+        points: [wp],
+      };
+      strokes.push(currentStroke);
+    }
+
+    function extendStroke(pt) {
+      if (!drawing || !currentStroke) return;
+      const wp = worldPoint(pt.x, pt.y);
+      const last = currentStroke.points[currentStroke.points.length - 1];
+      const dx = wp.x - last.x;
+      const dy = wp.y - last.y;
+      if (Math.hypot(dx, dy) > 1.2) {
+        currentStroke.points.push(wp);
+      }
+    }
+
+    function endStroke() {
+      drawing = false;
+      currentStroke = null;
+    }
+
+    function renderStrokes() {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.translate(cx, cy);
+      ctx.scale(currentScale, currentScale);
+      ctx.translate(-cx, -cy);
+
+      strokes.forEach(stroke => {
+        if (stroke.points.length < 2) return;
+        ctx.lineWidth = stroke.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = stroke.color;
+        ctx.globalCompositeOperation = stroke.mode === 'eraser' ? 'destination-out' : 'source-over';
+        ctx.beginPath();
+        stroke.points.forEach((p, i) => {
+          const method = i === 0 ? 'moveTo' : 'lineTo';
+          ctx[method](p.x, p.y);
+        });
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      });
+
+      if (clearing) {
+        ctx.globalCompositeOperation = 'source-over';
+        fallingFlakes.forEach(flake => {
+          ctx.globalAlpha = flake.alpha;
+          ctx.fillStyle = flake.color;
+          ctx.beginPath();
+          ctx.arc(flake.x, flake.y, flake.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+
+    function sampleFlakes() {
+      fallingFlakes = [];
+      strokes.forEach(stroke => {
+        for (let i = 0; i < stroke.points.length; i += 2) {
+          const p = stroke.points[i];
+          fallingFlakes.push({
+            x: p.x,
+            y: p.y,
+            alpha: 1,
+            color: stroke.mode === 'eraser' ? '#ffffff' : stroke.color,
+            size: Math.max(2, stroke.size * 0.5),
+            drift: (Math.random() - 0.5) * 0.5,
+            vy: 0.5 + Math.random() * 1.2,
+          });
+        }
+      });
+    }
+
+    function startSnowFall() {
+      if (!strokes.length || clearing) return;
+      clearing = true;
+      endStroke();
+      sampleFlakes();
+      strokes = [];
+      currentScale = 1;
+      zoomBaseDistance = null;
+      hudText.textContent = '飘落清屏中……';
+    }
+
+    function tickSnowFall() {
+      if (!clearing) return;
+      fallingFlakes.forEach(flake => {
+        flake.y += flake.vy;
+        flake.x += flake.drift;
+        flake.alpha -= 0.005;
+        if (flake.alpha < 0.1) flake.size *= 0.98;
+      });
+      fallingFlakes = fallingFlakes.filter(f => f.alpha > 0 && f.y < canvas.height + 20);
+      if (!fallingFlakes.length) {
+        clearing = false;
+        hudText.textContent = '清屏完毕：张开手掌唤出面板';
+      }
+    }
+
+    function handleZoom(handA, handB) {
+      const dist = Math.hypot(
+        handA.index.x - handB.index.x,
+        handA.index.y - handB.index.y,
+        handA.index.z - handB.index.z
+      );
+      if (!zoomBaseDistance) {
+        zoomBaseDistance = dist;
+        zoomBaseScale = currentScale;
+        return;
+      }
+      const factor = dist / zoomBaseDistance;
+      currentScale = Math.min(2.5, Math.max(0.6, zoomBaseScale * factor));
+    }
+
+    function detectExtended(hand, handedness) {
+      const tips = [8, 12, 16, 20];
+      const pips = [6, 10, 14, 18];
+      const isExtended = {};
+      tips.forEach((tip, i) => {
+        isExtended[tip] = hand[tip].y < hand[pips[i]].y - 0.015;
+      });
+      const thumbTip = hand[4];
+      const thumbIp = hand[3];
+      isExtended[4] = handedness === 'Right' ? thumbTip.x < thumbIp.x - 0.02 : thumbTip.x > thumbIp.x + 0.02;
+      const count = Object.values(isExtended).filter(Boolean).length;
+      return { isExtended, count };
+    }
+
+    function fingerPoint(hand) {
+      const x = (1 - hand[8].x) * canvas.width;
+      const y = hand[8].y * canvas.height;
+      return smoothPoint(x, y);
+    }
+
+    function isPinching(hand) {
+      const tip = hand[8];
+      const thumb = hand[4];
+      const d = Math.hypot(tip.x - thumb.x, tip.y - thumb.y, tip.z - thumb.z);
+      return d < 0.05;
+    }
+
+    function isOpenPalm(extInfo) {
+      return extInfo.count >= 4;
+    }
+
+    function isPeace(extInfo) {
+      return extInfo.isExtended[8] && extInfo.isExtended[12] && !extInfo.isExtended[16] && !extInfo.isExtended[20];
+    }
+
+    function handlePanelHover(point) {
+      if (!panelOpen) return;
+      const rects = [
+        ...elements.toolOptions.children,
+        ...elements.colorOptions.children,
+        ...elements.sizeOptions.children,
+      ];
+      let hovered = null;
+      rects.forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (point.x >= r.left && point.x <= r.right && point.y >= r.top && point.y <= r.bottom) {
+          hovered = el;
+        }
+      });
+      if (hovered && selectionHover === hovered) return;
+      selectionHover = hovered;
+      updateActiveUI();
+      rects.forEach(el => el.classList.toggle('hovered', el === hovered));
+      if (hovered) {
+        selectOption(hovered);
+      }
+    }
+
+    function selectOption(el) {
+      const value = el.dataset.value;
+      if (el.parentElement === elements.toolOptions) {
+        drawingMode = value;
+      } else if (el.parentElement === elements.colorOptions) {
+        strokeColor = value;
+      } else if (el.parentElement === elements.sizeOptions) {
+        strokeSize = Number(value);
+      }
+      pendingPanelClose = true;
+      updateActiveUI();
+    }
+
+    function updateCamStatus(active) {
+      camStatus.classList.toggle('active', active);
+    }
+
+    function loopRender() {
+      tickSnowFall();
+      renderStrokes();
+      requestAnimationFrame(loopRender);
+    }
+    requestAnimationFrame(loopRender);
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6,
+    });
+
+    hands.onResults((results) => {
+      updateCamStatus(!!results.multiHandLandmarks.length);
+      if (!results.multiHandLandmarks.length) {
+        zoomBaseDistance = null;
+        endStroke();
+        return;
+      }
+
+      const handsInfo = results.multiHandLandmarks.map((landmarks, idx) => {
+        const handedness = results.multiHandedness?.[idx]?.label || 'Right';
+        const extInfo = detectExtended(landmarks, handedness);
+        return {
+          landmarks,
+          handedness,
+          pointer: fingerPoint(landmarks),
+          pinch: isPinching(landmarks),
+          openPalm: isOpenPalm(extInfo),
+          peace: isPeace(extInfo),
+          index: landmarks[8],
+          extInfo,
+        };
+      });
+
+      const primary = handsInfo[0];
+      const secondary = handsInfo[1];
+
+      if (primary.openPalm && !panelOpen) {
+        openPanel();
+      } else if (panelOpen && pendingPanelClose && primary.openPalm) {
+        closePanel();
+      }
+
+      if (panelOpen) {
+        handlePanelHover(primary.pointer);
+        endStroke();
+        return;
+      }
+
+      if (primary.peace) {
+        startSnowFall();
+        return;
+      }
+
+      if (handsInfo.length === 2 && !primary.pinch && !secondary.pinch && primary.extInfo.isExtended[8] && secondary.extInfo.isExtended[8]) {
+        handleZoom(primary, secondary);
+      } else {
+        zoomBaseDistance = null;
+      }
+
+      if (primary.pinch && !clearing) {
+        if (!drawing) startStroke(primary.pointer);
+        extendStroke(primary.pointer);
+        hudText.textContent = drawingMode === 'eraser' ? '橡皮擦模式：保持捏合擦除' : '书写中：松开拇指停止';
+      } else if (drawing) {
+        endStroke();
+        hudText.textContent = '准备就绪：继续捏合书写';
+      }
+    });
+
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        await hands.send({ image: video });
+      },
+      width: 960,
+      height: 720,
+    });
+    camera.start();
+  </script>
+</body>
+</html>
