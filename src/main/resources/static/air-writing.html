@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas 画板</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(18, 26, 46, 0.92);
+      --accent: #00e0ff;
+      --text: #e7ecf3;
+      --muted: rgba(231, 236, 243, 0.7);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 20% 20%, #102040, var(--bg));
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 16px;
+      background: rgba(12, 18, 34, 0.8);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-wrap: wrap;
+    }
+    header .title {
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    header a {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 12px;
+      background: rgba(18, 26, 46, 0.6);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .btn.primary {
+      border-color: rgba(0,224,255,0.6);
+      box-shadow: 0 0 0 2px rgba(0,224,255,0.15);
+    }
+    .control {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 6px 10px;
+    }
+    .control label { font-size: 0.85rem; color: var(--muted); }
+    .control input[type=range] { width: 110px; }
+    .control input[type=checkbox] { transform: translateY(1px); }
+    .workspace {
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+    .hint {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      background: rgba(12, 18, 34, 0.75);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="title">Canvas 画板</div>
+      <div class="toolbar">
+        <div class="group">
+          <button class="btn primary" data-tool="pen">画笔</button>
+          <button class="btn" data-tool="eraser">橡皮擦</button>
+          <button class="btn" data-tool="line">直线</button>
+          <button class="btn" data-tool="rect">矩形</button>
+          <button class="btn" data-tool="circle">圆形</button>
+        </div>
+        <div class="control">
+          <label for="color">颜色</label>
+          <input id="color" type="color" value="#00e0ff" />
+        </div>
+        <div class="control">
+          <label for="size">粗细</label>
+          <input id="size" type="range" min="1" max="24" value="6" />
+        </div>
+        <div class="control">
+          <label for="stretch">拉伸</label>
+          <input id="stretch" type="checkbox" checked />
+        </div>
+        <div class="group">
+          <button id="undo" class="btn">撤销</button>
+          <button id="redo" class="btn">重做</button>
+          <button id="clear" class="btn">清空</button>
+          <button id="save" class="btn">保存图片</button>
+          <a href="/" class="btn">返回首页</a>
+        </div>
+      </div>
+    </header>
+    <div class="workspace">
+      <canvas id="board"></canvas>
+      <div class="hint">鼠标按住绘制 | 形状工具可拖拽拉伸 | 撤销/重做支持</div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const colorInput = document.getElementById('color');
+    const sizeInput = document.getElementById('size');
+    const stretchInput = document.getElementById('stretch');
+    const undoBtn = document.getElementById('undo');
+    const redoBtn = document.getElementById('redo');
+    const clearBtn = document.getElementById('clear');
+    const saveBtn = document.getElementById('save');
+
+    const toolButtons = Array.from(document.querySelectorAll('[data-tool]'));
+
+    let tool = 'pen';
+    let drawing = false;
+    let startPoint = null;
+    let lastPoint = null;
+    let baseSnapshot = null;
+    const undoStack = [];
+    const redoStack = [];
+    const maxHistory = 30;
+
+    function setTool(next) {
+      tool = next;
+      toolButtons.forEach(btn => btn.classList.toggle('primary', btn.dataset.tool === tool));
+    }
+
+    function getPoint(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+    }
+
+    function applyCanvasTransform() {
+      const ratio = window.devicePixelRatio || 1;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const snapshot = canvas.width ? canvas.toDataURL('image/png') : null;
+      canvas.width = Math.floor(rect.width * (window.devicePixelRatio || 1));
+      canvas.height = Math.floor(rect.height * (window.devicePixelRatio || 1));
+      applyCanvasTransform();
+      if (snapshot) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        };
+        img.src = snapshot;
+      }
+    }
+
+    function pushHistory() {
+      try {
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        undoStack.push(data);
+        if (undoStack.length > maxHistory) undoStack.shift();
+        redoStack.length = 0;
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    function restoreFrom(data) {
+      if (!data) return;
+      ctx.putImageData(data, 0, 0);
+    }
+
+    function clearCanvas() {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+
+    function startDraw(e) {
+      drawing = true;
+      startPoint = getPoint(e);
+      lastPoint = startPoint;
+      if (tool === 'pen' || tool === 'eraser') {
+        pushHistory();
+      } else {
+        baseSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    function endDraw() {
+      if (drawing && (tool === 'line' || tool === 'rect' || tool === 'circle')) {
+        pushHistory();
+      }
+      drawing = false;
+      startPoint = null;
+      lastPoint = null;
+      baseSnapshot = null;
+    }
+
+    function drawLine(from, to) {
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+    }
+
+    function drawRect(from, to, stretch) {
+      let w = to.x - from.x;
+      let h = to.y - from.y;
+      if (!stretch) {
+        const size = Math.max(Math.abs(w), Math.abs(h));
+        w = Math.sign(w) * size;
+        h = Math.sign(h) * size;
+      }
+      ctx.strokeRect(from.x, from.y, w, h);
+    }
+
+    function drawCircle(from, to, stretch) {
+      let rx = (to.x - from.x) / 2;
+      let ry = (to.y - from.y) / 2;
+      if (!stretch) {
+        const r = Math.max(Math.abs(rx), Math.abs(ry));
+        rx = Math.sign(rx) * r;
+        ry = Math.sign(ry) * r;
+      }
+      const cx = from.x + rx;
+      const cy = from.y + ry;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      const p = getPoint(e);
+      ctx.lineWidth = Number(sizeInput.value);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = colorInput.value;
+      ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+
+      if (tool === 'pen' || tool === 'eraser') {
+        drawLine(lastPoint, p);
+        lastPoint = p;
+      } else {
+        restoreFrom(baseSnapshot);
+        if (tool === 'line') {
+          drawLine(startPoint, p);
+        } else if (tool === 'rect') {
+          drawRect(startPoint, p, stretchInput.checked);
+        } else if (tool === 'circle') {
+          drawCircle(startPoint, p, stretchInput.checked);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function undo() {
+      const last = undoStack.pop();
+      if (!last) return;
+      redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      restoreFrom(last);
+    }
+
+    function redo() {
+      const next = redoStack.pop();
+      if (!next) return;
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      restoreFrom(next);
+    }
+
+    function saveImage() {
+      const link = document.createElement('a');
+      link.download = 'canvas-drawing.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    toolButtons.forEach(btn => {
+      btn.addEventListener('click', () => setTool(btn.dataset.tool));
+    });
+
+    undoBtn.addEventListener('click', undo);
+    redoBtn.addEventListener('click', redo);
+    clearBtn.addEventListener('click', () => {
+      pushHistory();
+      clearCanvas();
+    });
+    saveBtn.addEventListener('click', saveImage);
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('mouseleave', endDraw);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) redo();
+          else undo();
+        }
+        if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          redo();
+        }
+        if (e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          saveImage();
+        }
+      }
+    });
+
+    setTool('pen');
+    window.addEventListener('resize', resize);
+    resize();
+  </script>
+</body>
+</html>

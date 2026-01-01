@@ -7,9 +7,15 @@
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+<div id="loading" class="loading-overlay">
+    <div class="loading-card">
+        <div>页面加载中...</div>
+        <div class="loading-bar"><span></span></div>
+    </div>
+</div>
 <header>
     <h1>Arcade Hub</h1>
-    <p>四款小游戏合集：从经典贪吃蛇到暖雪灵感的肉鸽地牢，一键进入属于你的挑战。</p>
+    <p>五款小游戏合集：从经典贪吃蛇到暖雪灵感的肉鸽地牢，一键进入属于你的挑战。</p>
 </header>
 <main>
     <section class="hero">
@@ -19,7 +25,7 @@
                 <p>首页不再直接开局——先浏览游戏，再挑选喜欢的模式进入专属页面畅玩。</p>
                 <div class="hint">每个游戏页面都提供独立操作说明与计分板，支持桌面与移动键盘操作。</div>
             </div>
-            <a class="btn" href="#games">浏览四款游戏 →</a>
+            <a class="btn" href="#games">浏览全部内容 →</a>
         </div>
     </section>
 
@@ -55,7 +61,23 @@
             <div class="hint">操作：WASD 移动，J 键或点击斩击，空格冲刺，R 重新开局。</div>
             <a class="btn" href="/warm-snow.html">进入游戏</a>
         </article>
+
+        <article class="card">
+            <div class="pill">画板</div>
+            <h3>Canvas 画板</h3>
+            <p>纯鼠标绘图，支持形状绘制、撤销/重做、保存图片与清空画布。</p>
+            <div class="hint">操作：拖拽绘制，顶部工具栏切换工具与拉伸模式。</div>
+            <a class="btn" href="/air-writing.html">进入小程序</a>
+        </article>
     </section>
 </main>
+<script>
+    window.addEventListener('load', () => {
+        const loading = document.getElementById('loading');
+        if (!loading) return;
+        loading.classList.add('hidden');
+        setTimeout(() => loading.remove(), 300);
+    });
+</script>
 </body>
 </html>

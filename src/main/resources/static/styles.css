@@ -50,6 +50,53 @@ main { padding: 24px; max-width: 1200px; margin: 0 auto; }
     margin-bottom: 24px;
 }
 
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(12, 15, 24, 0.92);
+    color: var(--ink);
+    z-index: 999;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.loading-card {
+    background: var(--panel);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 16px;
+    padding: 18px 22px;
+    box-shadow: var(--shadow);
+    text-align: center;
+}
+
+.loading-bar {
+    height: 6px;
+    margin-top: 12px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.16);
+    overflow: hidden;
+}
+
+.loading-bar span {
+    display: block;
+    height: 100%;
+    width: 50%;
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    animation: loading-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes loading-slide {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(60%); }
+    100% { transform: translateX(200%); }
+}
+
 .hero h2 { margin: 0 0 12px; }
 .hero p { margin: 0 0 10px; color: var(--muted); }
 
