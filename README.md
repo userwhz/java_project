@@ -21,6 +21,14 @@ Then open:
 http://localhost:8080/
 ```
 
+Air-writing demo (camera required):
+
+```
+http://localhost:8080/air-writing.html
+```
+
+Note: the air-writing demo uses a backend OpenCV hand detector (`/api/hand`), so keep Spring Boot running while using it.
+
 ## Swing Snake Game
 
 Compile and run the Swing app:

@@ -1,14 +1,17 @@
 # Agent Instructions
 
 ## Project Overview
-- Spring Boot web app + Java Swing Snake game.
+- Spring Boot web app + Java Swing Snake game in one repo.
 - Web app entry point: `com.example.Application`.
 - Snake game entry point: `com.example.snake.GameApplication`.
 - Additional scratch/demo file: `src/Main.java` (not part of the Snake app).
 
 ## Structure
-- `src/main/java/com/example/`: Spring Boot app.
-- `src/main/java/com/example/snake/`: game UI and logic.
+- `pom.xml`: Maven build config.
+- `src/main/java/com/example/`: Spring Boot app (`Application`, controllers).
+- `src/main/java/com/example/snake/`: Swing game UI and logic.
+- `src/main/resources/`: Spring Boot config (e.g. `application.properties`).
+- `src/Main.java`: standalone Java demo (not part of Spring Boot).
 - `README.md`: build/run instructions.
 
 ## Build and Run
